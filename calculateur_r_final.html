@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#123b2a">
+<title>Calculateur R</title>
+<style>
+:root{--green:#123b2a;--green2:#1e6842;--mint:#e7f3eb;--bg:#f3f6f4;--line:#dce5df;--ink:#17231c;--muted:#6c786f}
+*{box-sizing:border-box}body{margin:0;padding: max(14px,env(safe-area-inset-top)) 12px max(18px,env(safe-area-inset-bottom));font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--ink)}
+main{max-width:780px;margin:auto}.hero{background:linear-gradient(140deg,#123b2a,#1e6842);color:white;border-radius:24px;padding:22px 18px;text-align:center;margin-bottom:14px}
+.logo{width:54px;height:54px;border-radius:16px;background:#ffffff20;border:1px solid #ffffff40;display:grid;place-items:center;font-weight:900;font-size:26px;margin:0 auto 10px}
+h1{font-size:26px;margin:0}.hero p{margin:7px 0 0;color:#d7eadf;font-size:14px}
+.panel{background:white;border-radius:20px;padding:17px;margin-bottom:14px;box-shadow:0 5px 20px #173b2a0a}
+h2{font-size:18px;margin:0 0 13px}.fields{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+label{display:block;font-size:12px;font-weight:700;color:var(--muted);margin:0 0 6px}
+input{width:100%;min-width:0;border:1.5px solid var(--line);border-radius:12px;background:#fbfdfb;padding:13px;font:inherit;font-size:17px;color:var(--ink);outline:none}
+input:focus{border-color:var(--green2);box-shadow:0 0 0 3px #1e68421a}
+.buttons{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+button{border:0;border-radius:12px;padding:12px 14px;font:inherit;font-size:14px;font-weight:750;cursor:pointer}
+.primary{background:var(--green);color:white;flex:1}.light{background:var(--mint);color:var(--green)}.red{background:#fff0ee;color:#a52b22}
+.summary{display:flex;justify-content:space-between;align-items:center;gap:8px;color:var(--muted);font-size:13px;margin-bottom:10px}
+.table-wrap{overflow-x:auto}table{border-collapse:collapse;width:100%;min-width:540px;font-size:14px}
+th{text-align:left;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.04em;padding:10px 8px;border-bottom:1px solid var(--line)}
+td{padding:12px 8px;border-bottom:1px solid #edf1ee}
+tbody tr:last-child td{border-bottom:0}.rank{font-weight:850;width:44px}.person{font-weight:700}.result{font-weight:850;color:var(--green);white-space:nowrap}
+.sub{display:block;color:var(--muted);font-size:11px;margin-top:3px}.empty{text-align:center;color:var(--muted);padding:25px}
+.iconbtn{padding:7px 9px;font-size:12px;margin:0 2px}
+.note{font-size:12px;color:var(--muted);text-align:center;line-height:1.5;margin:10px 3px 0}
+#editNote{display:none;background:#fff7df;color:#775400;border-radius:10px;padding:9px 11px;font-size:12px;margin-bottom:10px}
+@media(max-width:380px){.panel{padding:13px}.hero{padding:19px 12px}h1{font-size:23px}}
+</style>
+</head>
+<body>
+<main>
+<header class="hero"><div class="logo">R</div><h1>Calculateur R</h1><p>Gestion des participants · Moyenne · Classement automatique</p></header>
+<section class="panel">
+<h2 id="formTitle">Ajouter un participant</h2><div id="editNote">Modification d’un participant en cours.</div>
+<div class="fields">
+<div><label for="prenom">PRÉNOM</label><input id="prenom" autocomplete="given-name" placeholder="Prénom"></div>
+<div><label for="nom">NOM</label><input id="nom" autocomplete="family-name" placeholder="Nom"></div>
+<div><label for="x">VALEUR X</label><input id="x" type="number" inputmode="decimal" step="any" placeholder="Valeur X"></div>
+<div><label for="y">VALEUR Y</label><input id="y" type="number" inputmode="decimal" step="any" placeholder="Valeur Y"></div>
+</div>
+<div class="buttons"><button class="primary" id="savePerson">＋ Ajouter au classement</button><button class="light" id="cancelEdit" style="display:none">Annuler</button><button class="light" id="clearFields">Effacer</button></div>
+</section>
+<section class="panel">
+<div class="summary"><h2 style="margin:0">Classement</h2><span id="count">0 participant</span></div>
+<div class="table-wrap"><table><thead><tr><th>Rang</th><th>Participant</th><th>X</th><th>Y</th><th>Moyenne R</th><th>Actions</th></tr></thead><tbody id="rows"><tr><td colspan="6" class="empty">Aucun participant pour le moment.</td></tr></tbody></table></div>
+<div class="buttons"><button class="light" id="export">Exporter le classement CSV</button><button class="light" id="importBtn">Importer CSV</button><input id="importFile" type="file" accept=".csv,text/csv" style="display:none"><button class="red" id="clearAll">Vider le classement</button></div>
+<p class="note">Le classement est de la plus petite moyenne R à la plus grande. Les données sont sauvegardées localement dans ce navigateur. Exportez régulièrement un CSV pour garder une copie.</p>
+</section>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+let participants=[],editingId=null;
+try{participants=JSON.parse(localStorage.getItem('calculateurR_v2')||'[]');if(!Array.isArray(participants))participants=[];}catch(e){participants=[];}
+const fmt=n=>Number(n).toLocaleString('fr-FR',{maximumFractionDigits:10});
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function persist(){try{localStorage.setItem('calculateurR_v2',JSON.stringify(participants));}catch(e){alert('Sauvegarde locale impossible. Pense à exporter le CSV.');}draw();}
+function ranked(){return [...participants].sort((a,b)=>a.r-b.r||(`${a.nom} ${a.prenom}`).localeCompare(`${b.nom} ${b.prenom}`,'fr'));}
+function draw(){
+ const data=ranked();$('count').textContent=`${participants.length} participant${participants.length>1?'s':''}`;
+ if(!data.length){$('rows').innerHTML='<tr><td colspan="6" class="empty">Aucun participant pour le moment.</td></tr>';return;}
+ // Rang partagé en cas de moyenne identique (classement de compétition)
+ let rank=0,prev=null;
+ $('rows').innerHTML=data.map((p,i)=>{if(prev===null||p.r!==prev)rank=i+1;prev=p.r;
+ const medal=rank===1?'🥇':rank===2?'🥈':rank===3?'🥉':rank;
+ return `<tr><td class="rank">${medal}</td><td><span class="person">${esc(p.prenom)} ${esc(p.nom)}</span></td><td>${fmt(p.x)}</td><td>${fmt(p.y)}</td><td class="result">${fmt(p.r)}</td><td><button class="light iconbtn" onclick="editPerson('${p.id}')">Modifier</button><button class="red iconbtn" onclick="deletePerson('${p.id}')">✕</button></td></tr>`;
+ }).join('');
+}
+function clearForm(){['prenom','nom','x','y'].forEach(k=>$(k).value='');editingId=null;$('formTitle').textContent='Ajouter un participant';$('savePerson').textContent='＋ Ajouter au classement';$('cancelEdit').style.display='none';$('editNote').style.display='none';}
+$('savePerson').addEventListener('click',()=>{
+ const prenom=$('prenom').value.trim(),nom=$('nom').value.trim(),xs=$('x').value.trim(),ys=$('y').value.trim();
+ if(!prenom||!nom){alert('Renseigne le prénom et le nom.');return;}
+ if(xs===''||ys===''||!Number.isFinite(Number(xs))||!Number.isFinite(Number(ys))){alert('Renseigne des valeurs X et Y valides.');return;}
+ const p={id:editingId||('p'+Date.now().toString(36)+Math.random().toString(36).slice(2,7)),prenom,nom,x:Number(xs),y:Number(ys),r:(Number(xs)+Number(ys))/2};
+ if(editingId)participants=participants.map(item=>item.id===editingId?p:item);else participants.push(p);
+ persist();clearForm();$('prenom').focus();
+});
+window.editPerson=id=>{const p=participants.find(v=>v.id===id);if(!p)return;editingId=id;$('prenom').value=p.prenom;$('nom').value=p.nom;$('x').value=p.x;$('y').value=p.y;$('formTitle').textContent='Modifier le participant';$('savePerson').textContent='Enregistrer les modifications';$('cancelEdit').style.display='inline-block';$('editNote').style.display='block';window.scrollTo({top:0,behavior:'smooth'});};
+window.deletePerson=id=>{const p=participants.find(v=>v.id===id);if(p&&confirm(`Supprimer ${p.prenom} ${p.nom} du classement ?`)){participants=participants.filter(v=>v.id!==id);persist();if(editingId===id)clearForm();}};
+$('cancelEdit').addEventListener('click',clearForm);$('clearFields').addEventListener('click',clearForm);
+$('clearAll').addEventListener('click',()=>{if(participants.length&&confirm('Supprimer tous les participants ? Cette action est irréversible sans export CSV.')){participants=[];persist();clearForm();}});
+$('export').addEventListener('click',()=>{
+ const rows=[['Rang','Prénom','Nom','X','Y','Moyenne R']];let rank=0,prev=null;
+ ranked().forEach((p,i)=>{if(prev===null||p.r!==prev)rank=i+1;prev=p.r;rows.push([rank,p.prenom,p.nom,p.x,p.y,p.r]);});
+ const csv='\ufeff'+rows.map(row=>row.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(';')).join('\r\n');
+ const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='classement_calculateur_R.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+});
+$('importBtn').addEventListener('click',()=>$('importFile').click());
+$('importFile').addEventListener('change',async e=>{
+ const file=e.target.files[0];if(!file)return;
+ try{
+  const text=await file.text(),lines=text.replace(/^\ufeff/,'').split(/\r?\n/).filter(s=>s.trim());
+  const parseLine=line=>{const out=[];let cur='',q=false;for(let i=0;i<line.length;i++){const c=line[i];if(c==='"'&&q&&line[i+1]==='"'){cur+='"';i++;}else if(c==='"')q=!q;else if(c===';'&&!q){out.push(cur);cur='';}else cur+=c;}out.push(cur);return out;};
+  const parsed=lines.slice(1).map(parseLine).filter(a=>a.length>=5);
+  const incoming=parsed.map(a=>{const x=Number(a[3].replace(',','.')),y=Number(a[4].replace(',','.'));if(!a[0]||!a[1]||!Number.isFinite(x)||!Number.isFinite(y))return null;return{id:'p'+Date.now().toString(36)+Math.random().toString(36).slice(2,7),prenom:a[0],nom:a[1],x,y,r:(x+y)/2};}).filter(Boolean);
+  if(!incoming.length)throw new Error('Aucune ligne exploitable (CSV attendu : Prénom;Nom;X;Y).');
+  if(confirm(`Importer ${incoming.length} participant(s) ? Ils seront ajoutés au classement existant.`)){participants.push(...incoming);persist();alert('Import terminé.');}
+ }catch(err){alert('Import impossible : '+err.message);}
+ e.target.value='';
+});
+draw();
+</script>
+</body>
+</html>
